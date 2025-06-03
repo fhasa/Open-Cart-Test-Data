@@ -24,12 +24,26 @@ jobs:
         with:
           python-version: '3.10'
       
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          
+      - name: Set up ChromeDriver
+        uses: nanasess/setup-chromedriver@v2
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-html
           pip install selenium
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          
+          # Install from requirements.txt if it exists
+          if [ -f 03_pytest_automation/requirements.txt ]; then 
+            pip install -r 03_pytest_automation/requirements.txt
+          elif [ -f requirements.txt ]; then 
+            pip install -r requirements.txt
+          fi
       
       - name: Display test cases to run
         run: |
@@ -37,13 +51,82 @@ jobs:
           echo "Test case IDs: $TEST_CASE_IDS"
           echo "GitHub Run ID: $GITHUB_RUN_ID"
           echo "Request ID: $REQUEST_ID"
+          
+      - name: Debug test discovery
+        run: |
+          echo "=== Current directory ==="
+          pwd
+          echo "=== Directory contents ==="
+          ls -la
+          echo "=== Test directory contents ==="
+          ls -la 03_pytest_automation/tests/ || echo "Test directory not found"
+          echo "=== Show test file contents ==="
+          head -20 03_pytest_automation/tests/test.py || echo "Cannot read test.py"
+          
+          # Create __init__.py files if they don't exist (required for Python packages)
+          echo "=== Creating __init__.py files ==="
+          touch 03_pytest_automation/__init__.py
+          touch 03_pytest_automation/tests/__init__.py
+          
+          echo "=== Pytest discovery from root ==="
+          python -m pytest --collect-only -v 03_pytest_automation/tests/
+          echo "=== Pytest discovery from automation dir ==="
+          cd 03_pytest_automation && python -m pytest --collect-only -v tests/
+          echo "=== Pytest discovery with filter from automation dir ==="
+          cd 03_pytest_automation && python -m pytest --collect-only -v -k "$TEST_CASE_IDS" tests/ || echo "No tests match filter"
       
       - name: Run tests
         id: run_tests
         run: |
-          # Run pytest with -k to select tests containing the test case IDs
-          python -m pytest -v -k "$TEST_CASE_IDS" --junit-xml=test-results.xml
+          # Ensure __init__.py files exist
+          touch 03_pytest_automation/__init__.py
+          touch 03_pytest_automation/tests/__init__.py
+          
+          # Change to the test automation directory
+          cd 03_pytest_automation
+          
+          # First, let's see what tests we actually have
+          echo "=== Available tests from automation directory ==="
+          python -m pytest --collect-only -q tests/ 2>&1 | head -20
+          
+          # Check if we have any tests to run
+          if [ -z "$TEST_CASE_IDS" ] || [ "$TEST_CASE_IDS" = "" ]; then
+            echo "No test case IDs provided, running all tests"
+            python -m pytest -v tests/ --junit-xml=test-results.xml
+          else
+            echo "Running tests matching: $TEST_CASE_IDS"
+            
+            # Your test functions are named like: test_user_login_with_valid_credentials_TC_001
+            # The TC_001 part is at the end, so pytest -k should find them
+            
+            echo "=== Testing filter with original IDs ==="
+            python -m pytest --collect-only -q -k "$TEST_CASE_IDS" tests/ 2>&1 || echo "Original filter failed"
+            
+            # Let's try running with the original filter first
+            TEST_COUNT=$(python -m pytest --collect-only -q -k "$TEST_CASE_IDS" tests/ 2>/dev/null | grep -c "test_" || echo "0")
+            echo "Found $TEST_COUNT tests matching filter '$TEST_CASE_IDS'"
+            
+            if [ "$TEST_COUNT" -gt 0 ]; then
+              echo "Running tests with original filter"
+              python -m pytest -v -k "$TEST_CASE_IDS" tests/ --junit-xml=test-results.xml
+            else
+              echo "Original filter found no tests. The filter should work with your naming convention."
+              echo "Let's try running all tests and filter in post-processing"
+              python -m pytest -v tests/ --junit-xml=test-results.xml
+            fi
+          fi
         continue-on-error: true  # Continue workflow even if tests fail
+      
+      - name: Move test results to root
+        run: |
+          # Move the test results XML file to the root directory for processing
+          if [ -f 03_pytest_automation/test-results.xml ]; then
+            cp 03_pytest_automation/test-results.xml ./test-results.xml
+            echo "Test results file moved to root"
+          else
+            echo "No test results file found"
+            touch test-results.xml  # Create empty file to prevent errors
+          fi
       
       - name: Generate test results JSON
         run: |
@@ -60,7 +143,9 @@ jobs:
               "request_id": os.environ.get("REQUEST_ID", ""),
               "requirement_id": os.environ.get("REQUIREMENT_ID", ""),
               "requested_tests": os.environ.get("TEST_CASE_IDS", "").replace(" or ", ",").split(","),
-              "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+              "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              "working_directory": os.getcwd(),
+              "xml_file_exists": os.path.exists("test-results.xml")
           }
           
           print(f"Debug Info: {json.dumps(debug_info, indent=2)}")
@@ -68,6 +153,9 @@ jobs:
           # Parse JUnit XML result
           test_results = []
           try:
+              if not os.path.exists("test-results.xml"):
+                  raise FileNotFoundError("test-results.xml not found")
+                  
               tree = ET.parse("test-results.xml")
               root = tree.getroot()
               
@@ -76,28 +164,39 @@ jobs:
               test_ids = [tid.strip() for tid in raw_test_ids if tid.strip()]
               
               print(f"Processing test IDs: {test_ids}")
+              print(f"XML root tag: {root.tag}, attributes: {root.attrib}")
+              
+              # Debug: show all testcases found
+              all_testcases = root.findall(".//testcase")
+              print(f"Found {len(all_testcases)} test cases in XML")
+              for tc in all_testcases[:5]:  # Show first 5 for debugging
+                  print(f"  - {tc.get('name')} (class: {tc.get('classname')})")
               
               # Extract test results
-              for testcase in root.findall(".//testcase"):
+              for testcase in all_testcases:
                   name = testcase.get("name", "")
                   classname = testcase.get("classname", "")
                   
                   # Improved test ID matching - be more flexible
                   test_id = None
-                  for tid in test_ids:
-                      # Normalize both for comparison (remove TC- vs TC_)
-                      normalized_tid = tid.replace("-", "_").upper()
-                      normalized_name = name.replace("-", "_").upper()
-                      normalized_class = classname.replace("-", "_").upper()
-                      
-                      if (normalized_tid in normalized_name or 
-                          normalized_tid in normalized_class or
-                          normalized_name.endswith(normalized_tid) or
-                          normalized_class.endswith(normalized_tid)):
-                          test_id = tid  # Use the original ID format from the request
-                          break
+                  if test_ids:  # Only match if we have specific test IDs
+                      for tid in test_ids:
+                          # Normalize both for comparison (remove TC- vs TC_)
+                          normalized_tid = tid.replace("-", "_").upper()
+                          normalized_name = name.replace("-", "_").upper()
+                          normalized_class = classname.replace("-", "_").upper()
+                          
+                          if (normalized_tid in normalized_name or 
+                              normalized_tid in normalized_class or
+                              normalized_name.endswith(normalized_tid) or
+                              normalized_class.endswith(normalized_tid)):
+                              test_id = tid  # Use the original ID format from the request
+                              break
+                  else:
+                      # If no specific test IDs, include all tests
+                      test_id = name
                   
-                  if not test_id:
+                  if not test_id and test_ids:  # Only skip if we have specific IDs but no match
                       print(f"Could not match test case {name} (class: {classname}) to any requested test ID")
                       continue
                   
@@ -111,19 +210,19 @@ jobs:
                   
                   if failure is not None:
                       status = "Failed"
-                      error_msg = failure.get("message", failure.text or "Test failed")[:200]  # Limit message length
+                      error_msg = failure.get("message", failure.text or "Test failed")[:500]  # Increased limit
                   elif error is not None:
                       status = "Failed"
-                      error_msg = error.get("message", error.text or "Test error")[:200]
+                      error_msg = error.get("message", error.text or "Test error")[:500]
                   elif skipped is not None:
                       status = "Not Run"
-                      error_msg = skipped.get("message", skipped.text or "Test skipped")[:200]
+                      error_msg = skipped.get("message", skipped.text or "Test skipped")[:500]
                   
                   # Calculate duration in milliseconds
                   duration_ms = int(float(testcase.get("time", "0")) * 1000)
                   
                   result = {
-                      "id": test_id,
+                      "id": test_id or name,
                       "name": name,
                       "status": status,
                       "duration": duration_ms
@@ -134,20 +233,21 @@ jobs:
                       result["logs"] = error_msg
                   
                   test_results.append(result)
-                  print(f"Added result for {test_id}: {status} (duration: {duration_ms}ms)")
+                  print(f"Added result for {test_id or name}: {status} (duration: {duration_ms}ms)")
               
-              # IMPORTANT: Add the originally requested tests as Not Run if they weren't found
-              found_ids = [r["id"] for r in test_results]
-              for tid in test_ids:
-                  if tid and tid not in found_ids:
-                      print(f"Adding Not Run status for missing test {tid}")
-                      test_results.append({
-                          "id": tid,
-                          "name": f"Test {tid}",
-                          "status": "Not Run",
-                          "duration": 0,
-                          "logs": f"Test {tid} was not found or not executed"
-                      })
+              # IMPORTANT: Only add missing tests if we had specific test IDs
+              if test_ids:
+                  found_ids = [r["id"] for r in test_results]
+                  for tid in test_ids:
+                      if tid and tid not in found_ids:
+                          print(f"Adding Not Run status for missing test {tid}")
+                          test_results.append({
+                              "id": tid,
+                              "name": f"Test {tid}",
+                              "status": "Not Run",
+                              "duration": 0,
+                              "logs": f"Test {tid} was not found or not executed"
+                          })
                       
           except FileNotFoundError:
               print("No test-results.xml file found - creating placeholder results")
@@ -155,30 +255,51 @@ jobs:
               raw_test_ids = os.environ.get("TEST_CASE_IDS", "").replace(" or ", ",").split(",")
               test_ids = [tid.strip() for tid in raw_test_ids if tid.strip()]
               
-              for tid in test_ids:
-                  if tid:
-                      test_results.append({
-                          "id": tid,
-                          "name": f"Test {tid}",
-                          "status": "Not Run",
-                          "duration": 0,
-                          "logs": "No test results file generated - tests may not have run"
-                      })
+              if not test_ids:
+                  test_results.append({
+                      "id": "UNKNOWN",
+                      "name": "Unknown Test",
+                      "status": "Not Run",
+                      "duration": 0,
+                      "logs": "No test results file generated and no test IDs provided"
+                  })
+              else:
+                  for tid in test_ids:
+                      if tid:
+                          test_results.append({
+                              "id": tid,
+                              "name": f"Test {tid}",
+                              "status": "Not Run",
+                              "duration": 0,
+                              "logs": "No test results file generated - tests may not have run"
+                          })
           except Exception as e:
               print(f"Error processing test results: {e}")
+              import traceback
+              traceback.print_exc()
+              
               # Get test case IDs from environment variable
               raw_test_ids = os.environ.get("TEST_CASE_IDS", "").replace(" or ", ",").split(",")
               test_ids = [tid.strip() for tid in raw_test_ids if tid.strip()]
               
-              for tid in test_ids:
-                  if tid:
-                      test_results.append({
-                          "id": tid,
-                          "name": f"Test {tid}",
-                          "status": "Failed",
-                          "duration": 0,
-                          "logs": f"Error processing test results: {str(e)}"
-                      })
+              if not test_ids:
+                  test_results.append({
+                      "id": "ERROR",
+                      "name": "Error Processing",
+                      "status": "Failed",
+                      "duration": 0,
+                      "logs": f"Error processing test results: {str(e)}"
+                  })
+              else:
+                  for tid in test_ids:
+                      if tid:
+                          test_results.append({
+                              "id": tid,
+                              "name": f"Test {tid}",
+                              "status": "Failed",
+                              "duration": 0,
+                              "logs": f"Error processing test results: {str(e)}"
+                          })
           
           # Prepare result object with proper structure
           result_obj = {
@@ -215,6 +336,7 @@ jobs:
           path: |
             results-${{ github.run_id }}.json
             results.json
+            test-results.xml
           
       - name: Send results back to Quality Tracker
         if: env.CALLBACK_URL != ''
