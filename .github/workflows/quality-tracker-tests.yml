@@ -42,19 +42,23 @@ jobs:
       
       - name: Run tests
         id: run_tests
-        working-directory: 03_pytest_automation
         run: |
+          # Change to the test directory
+          cd 03_pytest_automation
+          
           # Normalize test case IDs by replacing hyphens with underscores
           NORMALIZED_TEST_IDS=$(echo "$TEST_CASE_IDS" | sed 's/TC-/TC_/g')
           echo "Normalized test IDs: $NORMALIZED_TEST_IDS"
           
           # Run pytest with -k to select tests containing the test case IDs
-          python -m pytest -v -k "$NORMALIZED_TEST_IDS" --junit-xml=test-results.xml
+          # Specify the tests directory explicitly
+          python -m pytest tests/ -v -k "$NORMALIZED_TEST_IDS" --junit-xml=test-results.xml
         continue-on-error: true  # Continue workflow even if tests fail
       
       - name: Generate test results JSON
-        working-directory: 03_pytest_automation
         run: |
+          # Change to the test directory where results are generated
+          cd 03_pytest_automation
           cat > process_tests.py << 'EOF'
           import json
           import xml.etree.ElementTree as ET
