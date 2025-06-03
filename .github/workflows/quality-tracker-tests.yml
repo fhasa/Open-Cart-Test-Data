@@ -29,7 +29,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-html
           pip install selenium
-          # Install from the automation directory if requirements.txt exists there
+          
+          # Install Chrome for Selenium tests
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          
+          # Install ChromeDriver
+          CHROME_VERSION=$(google-chrome --version | cut -f 3 -d ' ' | cut -d '.' -f 1)
+          wget -O chromedriver.zip "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}/chromedriver_linux64.zip"
+          unzip chromedriver.zip
+          sudo mv chromedriver /usr/local/bin/
+          sudo chmod +x /usr/local/bin/chromedriver
+          
+          # Install from requirements.txt if it exists
           if [ -f 03_pytest_automation/requirements.txt ]; then 
             pip install -r 03_pytest_automation/requirements.txt
           elif [ -f requirements.txt ]; then 
