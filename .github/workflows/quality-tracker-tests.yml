@@ -51,8 +51,12 @@ jobs:
           ls -la
           echo "=== Test directory contents ==="
           ls -la 03_pytest_automation/tests/ || echo "Test directory not found"
-          echo "=== Pytest discovery ==="
-          cd 03_pytest_automation && python -m pytest --collect-only || echo "No tests found"
+          echo "=== Show test file contents ==="
+          cat 03_pytest_automation/tests/test.py || echo "Cannot read test.py"
+          echo "=== Pytest discovery (all tests) ==="
+          cd 03_pytest_automation && python -m pytest --collect-only -v
+          echo "=== Pytest discovery with filter ==="
+          cd 03_pytest_automation && python -m pytest --collect-only -v -k "$TEST_CASE_IDS" || echo "No tests match filter"
       
       - name: Run tests
         id: run_tests
@@ -60,14 +64,35 @@ jobs:
           # Change to the test automation directory
           cd 03_pytest_automation
           
+          # First, let's see what tests we actually have
+          echo "=== Available tests ==="
+          python -m pytest --collect-only -q tests/ | head -20
+          
           # Check if we have any tests to run
           if [ -z "$TEST_CASE_IDS" ] || [ "$TEST_CASE_IDS" = "" ]; then
             echo "No test case IDs provided, running all tests"
             python -m pytest -v tests/ --junit-xml=test-results.xml
           else
             echo "Running tests matching: $TEST_CASE_IDS"
-            # Run pytest with -k to select tests containing the test case IDs
-            python -m pytest -v -k "$TEST_CASE_IDS" tests/ --junit-xml=test-results.xml
+            
+            # Your test functions are named like: test_user_login_with_valid_credentials_TC_001
+            # The TC_001 part is at the end, so pytest -k should find them
+            # Let's test this step by step
+            
+            echo "=== Testing filter with original IDs ==="
+            python -m pytest --collect-only -q -k "$TEST_CASE_IDS" tests/ || echo "Original filter failed"
+            
+            # Let's try running with the original filter first
+            TEST_COUNT=$(python -m pytest --collect-only -q -k "$TEST_CASE_IDS" tests/ 2>/dev/null | grep -c "test_" || echo "0")
+            echo "Found $TEST_COUNT tests matching filter '$TEST_CASE_IDS'"
+            
+            if [ "$TEST_COUNT" -gt 0 ]; then
+              echo "Running tests with original filter"
+              python -m pytest -v -k "$TEST_CASE_IDS" tests/ --junit-xml=test-results.xml
+            else
+              echo "Original filter found no tests. Running all tests - will filter results in post-processing"
+              python -m pytest -v tests/ --junit-xml=test-results.xml
+            fi
           fi
         continue-on-error: true  # Continue workflow even if tests fail
       
