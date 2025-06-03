@@ -27,9 +27,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-html
-          pip install selenium
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-html selenium
+          # Install from requirements.txt if it exists in the automation directory
+          if [ -f 03_pytest_automation/requirements.txt ]; then 
+            pip install -r 03_pytest_automation/requirements.txt
+          fi
       
       - name: Display test cases to run
         run: |
@@ -40,12 +42,18 @@ jobs:
       
       - name: Run tests
         id: run_tests
+        working-directory: 03_pytest_automation
         run: |
+          # Normalize test case IDs by replacing hyphens with underscores
+          NORMALIZED_TEST_IDS=$(echo "$TEST_CASE_IDS" | sed 's/TC-/TC_/g')
+          echo "Normalized test IDs: $NORMALIZED_TEST_IDS"
+          
           # Run pytest with -k to select tests containing the test case IDs
-          python -m pytest -v -k "$TEST_CASE_IDS" --junit-xml=test-results.xml
+          python -m pytest -v -k "$NORMALIZED_TEST_IDS" --junit-xml=test-results.xml
         continue-on-error: true  # Continue workflow even if tests fail
       
       - name: Generate test results JSON
+        working-directory: 03_pytest_automation
         run: |
           cat > process_tests.py << 'EOF'
           import json
@@ -85,15 +93,20 @@ jobs:
                   # Improved test ID matching - be more flexible
                   test_id = None
                   for tid in test_ids:
-                      # Normalize both for comparison (remove TC- vs TC_)
-                      normalized_tid = tid.replace("-", "_").upper()
+                      # Normalize both for comparison (handle both TC-001 and TC_001 formats)
+                      normalized_tid_underscore = tid.replace("-", "_").upper()
+                      normalized_tid_hyphen = tid.replace("_", "-").upper()
                       normalized_name = name.replace("-", "_").upper()
                       normalized_class = classname.replace("-", "_").upper()
                       
-                      if (normalized_tid in normalized_name or 
-                          normalized_tid in normalized_class or
-                          normalized_name.endswith(normalized_tid) or
-                          normalized_class.endswith(normalized_tid)):
+                      if (normalized_tid_underscore in normalized_name or 
+                          normalized_tid_hyphen in normalized_name or
+                          normalized_tid_underscore in normalized_class or
+                          normalized_tid_hyphen in normalized_class or
+                          normalized_name.endswith(normalized_tid_underscore) or
+                          normalized_name.endswith(normalized_tid_hyphen) or
+                          normalized_class.endswith(normalized_tid_underscore) or
+                          normalized_class.endswith(normalized_tid_hyphen)):
                           test_id = tid  # Use the original ID format from the request
                           break
                   
@@ -213,8 +226,8 @@ jobs:
         with:
           name: test-results-${{ github.run_id }}
           path: |
-            results-${{ github.run_id }}.json
-            results.json
+            03_pytest_automation/results-${{ github.run_id }}.json
+            03_pytest_automation/results.json
           
       - name: Send results back to Quality Tracker
         if: env.CALLBACK_URL != ''
@@ -222,13 +235,13 @@ jobs:
           echo "Sending test results back to Quality Tracker..."
           echo "Callback URL: $CALLBACK_URL"
           echo "Results file content:"
-          cat results.json
+          cat 03_pytest_automation/results.json
           echo ""
           echo "Sending POST request..."
           curl -X POST \
             -H "Content-Type: application/json" \
             -H "User-Agent: GitHub-Actions-Quality-Tracker" \
-            -d @results.json \
+            -d @03_pytest_automation/results.json \
             "$CALLBACK_URL" \
             --max-time 30 \
             --retry 3 \
