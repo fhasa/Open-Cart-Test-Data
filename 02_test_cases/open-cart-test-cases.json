@@ -77,7 +77,7 @@
     "requirementIds": [
       "REQ-001"
     ],
-    "version": "v1.2",
+    "version": "v1.0",
     "executedBy": "Pytest",
     "tags": [
       "Authentication",

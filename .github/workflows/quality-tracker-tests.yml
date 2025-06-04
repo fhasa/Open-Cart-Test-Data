@@ -26,10 +26,11 @@ jobs:
       
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-html
-          pip install selenium
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+            python -m pip install --upgrade pip
+            pip install pytest pytest-html
+            pip install selenium webdriver-manager  # Add webdriver-manager here
+            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+            
       
       - name: Display test cases to run
         run: |
