@@ -1,6 +1,6 @@
 """
-OpenCart Automation Test Suite - Homepage Top Bar Elements Test Case
-Simple test to verify top bar elements are found on the homepage
+OpenCart Automation Test Suite - Homepage Elements Test Cases
+Tests for top bar elements and header elements
 """
 
 import pytest
@@ -97,11 +97,11 @@ def driver(request):
     driver.quit()
 
 # ============================================================================
-# TEST CASE
+# TEST CASES
 # ============================================================================
 
-class TestHomepageTopBar:
-    """Test case for homepage top bar elements"""
+class TestHomepageElements:
+    """Test cases for homepage elements"""
     
     def test_verify_all_top_bar_elements_visibility_TC_001(self, driver):
         """
@@ -286,6 +286,195 @@ class TestHomepageTopBar:
         logger.info("   - Wish List: ✓ Found")
         logger.info("   - Shopping Cart: ✓ Found")
         logger.info("   - Checkout: ✓ Found")
+        logger.info("✅ Test completed successfully")
+    
+    def test_verify_header_elements_TC_002(self, driver):
+        """
+        Test Case: Verify Header Contains Logo, Search Bar, Navigation Menu, and Cart Summary
+        
+        Steps:
+        1. Navigate to OpenCart homepage
+        2. Check if Logo (Your Store) is found
+        3. Check if Search Bar (input field) is found
+        4. Check if Search Button is found
+        5. Check if Navigation Menu container is found
+        6. Check if Cart Summary is found
+        """
+        
+        logger.info("Starting test: Verify Header Elements are found")
+        
+        # Step 1: Navigate to homepage
+        driver.get(BASE_URL)
+        logger.info(f"Navigated to: {BASE_URL}")
+        
+        # Wait for page to load
+        WebDriverWait(driver, 10).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        
+        # Verify we're on the correct page
+        assert "Your Store" in driver.title, f"Expected 'Your Store' in title, got: {driver.title}"
+        logger.info("✓ Homepage loaded successfully")
+        
+        # Step 2: Check Logo (Your Store)
+        logo_selectors = [
+            "//h1//a[contains(text(), 'Your Store')]",
+            "//*[contains(text(), 'Your Store')]",
+            "//a[@title='Your Store']",
+            "#logo"
+        ]
+        logo_found = False
+        for selector in logo_selectors:
+            try:
+                if selector.startswith("//") or selector.startswith("/"):
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                else:
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                logger.info("✓ Logo (Your Store) found")
+                logo_found = True
+                break
+            except TimeoutException:
+                continue
+        
+        if not logo_found:
+            logger.error("✗ Logo (Your Store) not found")
+        
+        # Step 3: Check Search Bar (input field)
+        search_input_selectors = [
+            "//input[@name='search']",
+            "//input[@placeholder='Search']",
+            "//input[contains(@class, 'form-control')]",
+            "input[name='search']"
+        ]
+        search_input_found = False
+        for selector in search_input_selectors:
+            try:
+                if selector.startswith("//") or selector.startswith("/"):
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                else:
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                logger.info("✓ Search input field found")
+                search_input_found = True
+                break
+            except TimeoutException:
+                continue
+        
+        if not search_input_found:
+            logger.error("✗ Search input field not found")
+        
+        # Step 4: Check Search Button
+        search_button_selectors = [
+            "//button[contains(@class, 'btn') and contains(@class, 'btn-default')]",
+            "//button[@type='button']",
+            "//i[@class='fa fa-search']",
+            ".btn.btn-default"
+        ]
+        search_button_found = False
+        for selector in search_button_selectors:
+            try:
+                if selector.startswith("//") or selector.startswith("/"):
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                else:
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                logger.info("✓ Search button found")
+                search_button_found = True
+                break
+            except TimeoutException:
+                continue
+        
+        if not search_button_found:
+            logger.error("✗ Search button not found")
+        
+        # Step 5: Check Navigation Menu container
+        nav_menu_selectors = [
+            "//nav[contains(@class, 'navbar')]",
+            "//div[contains(@class, 'navbar')]",
+            "//ul[contains(@class, 'nav')]",
+            ".navbar"
+        ]
+        nav_menu_found = False
+        for selector in nav_menu_selectors:
+            try:
+                if selector.startswith("//") or selector.startswith("/"):
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                else:
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                logger.info("✓ Navigation menu container found")
+                nav_menu_found = True
+                break
+            except TimeoutException:
+                continue
+        
+        if not nav_menu_found:
+            logger.error("✗ Navigation menu container not found")
+        
+        # Step 6: Check Cart Summary
+        cart_summary_selectors = [
+            "//button[contains(text(), 'item')]",
+            "//button[contains(text(), '$')]",
+            "//*[contains(text(), '0 item') or contains(text(), 'item(s)')]",
+            ".btn.btn-inverse"
+        ]
+        cart_summary_found = False
+        for selector in cart_summary_selectors:
+            try:
+                if selector.startswith("//") or selector.startswith("/"):
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                else:
+                    WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                logger.info("✓ Cart summary found")
+                cart_summary_found = True
+                break
+            except TimeoutException:
+                continue
+        
+        if not cart_summary_found:
+            logger.error("✗ Cart summary not found")
+        
+        # Assertions
+        assert logo_found, "Logo (Your Store) should be found on the homepage"
+        assert search_input_found, "Search input field should be found on the homepage"
+        assert search_button_found, "Search button should be found on the homepage"
+        assert nav_menu_found, "Navigation menu container should be found on the homepage"
+        assert cart_summary_found, "Cart summary should be found on the homepage"
+        
+        # Final verification
+        all_header_elements_found = all([
+            logo_found,
+            search_input_found,
+            search_button_found,
+            nav_menu_found,
+            cart_summary_found
+        ])
+        
+        assert all_header_elements_found, "All header elements should be found"
+        
+        logger.info("✅ All header elements found successfully:")
+        logger.info("   - Logo (Your Store): ✓ Found")
+        logger.info("   - Search Input Field: ✓ Found")
+        logger.info("   - Search Button: ✓ Found")
+        logger.info("   - Navigation Menu Container: ✓ Found")
+        logger.info("   - Cart Summary: ✓ Found")
         logger.info("✅ Test completed successfully")
 
 # ============================================================================
