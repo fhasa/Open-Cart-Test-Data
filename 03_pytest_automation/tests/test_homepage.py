@@ -103,7 +103,7 @@ def driver(request):
 class TestHomepageElements:
     """Test cases for homepage elements"""
     
-    def test_verify_all_top_bar_elements_visibility_TC_001(self, driver):
+    def test_verify_all_top_bar_elements_visibility_TC_009(self, driver):
         """
         Test Case: Verify All Top Bar Elements are found on the homepage
         
@@ -288,7 +288,7 @@ class TestHomepageElements:
         logger.info("   - Checkout: ✓ Found")
         logger.info("✅ Test completed successfully")
     
-    def test_verify_header_elements_TC_002(self, driver):
+    def test_verify_header_elements_TC_010(self, driver):
         """
         Test Case: Verify Header Contains Logo, Search Bar, Navigation Menu, and Cart Summary
         
