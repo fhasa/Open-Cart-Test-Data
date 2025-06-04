@@ -64,12 +64,20 @@ def driver(request):
     browser = request.config.getoption("--browser", default="chrome")
     headless = request.config.getoption("--headless", default=False)
     
+    # Force headless mode in CI environment
+    is_ci = os.getenv("CI", "").lower() == "true" or os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+    if is_ci:
+        headless = True
+        logger.info("CI environment detected - forcing headless mode")
+    
     logger.info(f"Setting up {browser} driver (headless: {headless})")
     
     if browser.lower() == "chrome":
         chrome_options = Options()
-        if headless:
+        if headless or is_ci:
             chrome_options.add_argument("--headless")
+        
+        # Essential arguments for CI environment
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
@@ -77,10 +85,27 @@ def driver(request):
         chrome_options.add_argument("--disable-notifications")
         chrome_options.add_argument("--disable-popup-blocking")
         
+        # CI-specific arguments
+        if is_ci:
+            chrome_options.add_argument("--disable-web-security")
+            chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+            chrome_options.add_argument("--disable-background-timer-throttling")
+            chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+            chrome_options.add_argument("--disable-renderer-backgrounding")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-plugins")
+            chrome_options.add_argument("--disable-default-apps")
+            chrome_options.add_argument("--disable-sync")
+            
+            # Generate unique user data directory for CI
+            import tempfile
+            import uuid
+            unique_dir = os.path.join(tempfile.gettempdir(), f"chrome_user_data_{uuid.uuid4().hex[:8]}")
+            chrome_options.add_argument(f"--user-data-dir={unique_dir}")
+            logger.info(f"Using unique user data directory: {unique_dir}")
+        
         # Enable DevTools for cache clearing (removed incognito)
         chrome_options.add_argument("--enable-automation")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-plugins")
         chrome_options.add_experimental_option("useAutomationExtension", False)
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         
@@ -89,7 +114,7 @@ def driver(request):
         
     elif browser.lower() == "firefox":
         firefox_options = FirefoxOptions()
-        if headless:
+        if headless or is_ci:
             firefox_options.add_argument("--headless")
         firefox_options.add_argument("--width=1920")
         firefox_options.add_argument("--height=1080")
@@ -104,7 +129,8 @@ def driver(request):
     else:
         raise ValueError(f"Browser {browser} is not supported")
     
-    driver.maximize_window()
+    if not is_ci:
+        driver.maximize_window()
     driver.implicitly_wait(10)
     
     # Clear all cookies and local storage for clean test start
