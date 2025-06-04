@@ -57,31 +57,37 @@
   },
   {
     "id": "TC_003",
-    "name": "Verify login from My Account dropdown",
-    "description": "Verify that a user can access the login page from My Account dropdown in the header.",
+    "name": "Login and Continue from Last Activity",
+    "description": "Verify that after a user logs in, logs out, and clicks the Continue button, they are redirected back to the homepage.",
     "steps": [
-      "Navigate to the OpenCart homepage.",
-      "Click on the My Account dropdown in the header.",
-      "Click on Login option in the dropdown.",
-      "Verify that login page is displayed with E-Mail Address and Password fields."
+      "Clear browser cache and navigate to the OpenCart homepage.",
+      "Click on the My Account dropdown and select the Login option.",
+      "Enter valid email and password, then click the Login button.",
+      "Verify that the user's account dashboard is successfully loaded.",
+      "Click on the My Account dropdown again and select Logout.",
+      "Verify that the logout success page appears with a Continue button.",
+      "Click the Continue button.",
+      "Verify that the user is redirected back to the homepage."
     ],
-    "expectedResult": "User should be redirected to the login page with returning customer form visible.",
+    "expectedResult": "User should be redirected to the homepage after clicking the Continue button on the logout success page.",
     "status": "Not Run",
     "automationStatus": "Automated",
-    "automationPath": "tests/TestOpenCart/test_login_navigation.py",
+    "automationPath": "tests/TestOpenCart/test_login_logout_continue.py",
     "lastExecuted": "",
     "requirementIds": [
       "REQ-001"
     ],
-    "version": "v1.0",
+    "version": "v1.2",
     "executedBy": "Pytest",
     "tags": [
       "Authentication",
+      "Login",
+      "Logout",
       "Navigation",
-      "Login"
+      "User Flow"
     ],
     "priority": "Medium",
-    "estimatedDuration": 1
+    "estimatedDuration": 2
   },
   {
     "id": "TC_004",
